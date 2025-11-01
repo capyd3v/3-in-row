@@ -15,7 +15,7 @@ class TresEnRaya {
         };
         
         this.inicializarEventos();
-        this.inicializarTablero(); // Inicializar tablero una vez al inicio
+        this.inicializarTablero();
     }
     
     inicializarEventos() {
@@ -32,7 +32,6 @@ class TresEnRaya {
         document.getElementById('form-crear-sala').addEventListener('submit', (e) => this.crearSala(e));
         document.getElementById('form-unir-sala').addEventListener('submit', (e) => this.unirSala(e));
         
-        // Cargar salas disponibles al mostrar la pantalla
         document.getElementById('btn-unir-sala').addEventListener('click', () => {
             setTimeout(() => this.obtenerSalasDisponibles(), 100);
         });
@@ -57,6 +56,8 @@ class TresEnRaya {
         const celdas = document.querySelectorAll('.celda');
         const esMiTurno = this.miSimbolo === this.turnoActual;
         const juegoEnProgreso = this.estadoActual === 'jugando';
+        
+        console.log('Actualizando tablero. Mi símbolo:', this.miSimbolo, 'Turno actual:', this.turnoActual, 'Es mi turno:', esMiTurno, 'Estado:', this.estadoActual);
         
         celdas.forEach((celda, index) => {
             // Limpiar la celda primero
@@ -87,8 +88,6 @@ class TresEnRaya {
                 celda.classList.remove('jugable');
             }
         });
-        
-        console.log('Tablero actualizado. Mi turno:', esMiTurno, 'Estado:', this.estadoActual);
     }
     
     hacerMovimiento(posicion) {
@@ -96,13 +95,23 @@ class TresEnRaya {
         const esMiTurno = this.miSimbolo === this.turnoActual;
         const juegoEnProgreso = this.estadoActual === 'jugando';
         
+        console.log('Intentando movimiento. Posición:', posicion, 'Es mi turno:', esMiTurno, 'Juego en progreso:', juegoEnProgreso, 'Mi símbolo:', this.miSimbolo, 'Turno actual:', this.turnoActual);
+        
+        if (!this.miSimbolo) {
+            console.log('Error: No tengo símbolo asignado');
+            alert('Error: No tienes un símbolo asignado');
+            return;
+        }
+        
         if (!esMiTurno) {
-            console.log('No es tu turno');
+            console.log('No es tu turno. Tu símbolo:', this.miSimbolo, 'Turno actual:', this.turnoActual);
+            alert('No es tu turno');
             return;
         }
         
         if (!juegoEnProgreso) {
-            console.log('El juego no está en progreso');
+            console.log('El juego no está en progreso. Estado:', this.estadoActual);
+            alert('El juego no está en progreso');
             return;
         }
         
@@ -110,7 +119,8 @@ class TresEnRaya {
         const celdas = document.querySelectorAll('.celda');
         const celda = celdas[posicion];
         if (celda.textContent !== '') {
-            console.log('Celda ocupada');
+            console.log('Celda ocupada:', celda.textContent);
+            alert('Esta celda ya está ocupada');
             return;
         }
         
@@ -122,10 +132,10 @@ class TresEnRaya {
             }));
         } else {
             console.log('WebSocket no está conectado');
+            alert('Error de conexión');
         }
     }
     
-    // ... (el resto de los métodos se mantienen igual)
     mostrarPantalla(pantalla) {
         Object.values(this.pantallas).forEach(p => {
             if (p) p.classList.remove('activa');
@@ -176,6 +186,7 @@ class TresEnRaya {
             case 'sala_creada':
                 this.salaId = mensaje.sala_id;
                 this.miSimbolo = 'X';
+                console.log('Sala creada. Mi símbolo:', this.miSimbolo);
                 this.mostrarPantallaJuego();
                 this.actualizarInfoSala();
                 this.mostrarMensajeEspera();
@@ -184,16 +195,18 @@ class TresEnRaya {
             case 'unido_exitoso':
                 console.log('Unido exitosamente a la sala:', mensaje.sala);
                 this.miSimbolo = mensaje.tu_simbolo;
+                console.log('Unido a sala. Mi símbolo:', this.miSimbolo, 'Sala completa:', mensaje.sala);
                 this.mostrarPantallaJuego();
                 this.actualizarPantallaConEstado(mensaje.sala);
                 break;
                 
             case 'estado_actualizado':
+                console.log('Estado actualizado:', mensaje.sala);
                 this.actualizarPantallaConEstado(mensaje.sala);
                 break;
                 
             case 'actualizar_tablero':
-                console.log('Actualizando tablero:', mensaje.tablero);
+                console.log('Actualizando tablero. Turno:', mensaje.turno, 'Estado:', mensaje.estado, 'Tablero:', mensaje.tablero);
                 this.actualizarTablero(mensaje.tablero);
                 this.actualizarTurno(mensaje.turno);
                 this.actualizarEstado(mensaje.estado, mensaje.ganador);
@@ -201,6 +214,7 @@ class TresEnRaya {
                 
             case 'estado_actual':
                 this.miSimbolo = mensaje.tu_simbolo;
+                console.log('Estado actual. Mi símbolo:', this.miSimbolo, 'Sala:', mensaje.sala);
                 this.actualizarPantallaConEstado(mensaje.sala);
                 break;
                 
@@ -214,7 +228,8 @@ class TresEnRaya {
                 break;
                 
             case 'error':
-                alert(mensaje.mensaje);
+                console.error('Error del servidor:', mensaje.mensaje);
+                alert('Error: ' + mensaje.mensaje);
                 break;
         }
     }
@@ -415,7 +430,8 @@ class TresEnRaya {
     }
     
     actualizarPantallaConEstado(sala) {
-        console.log('Actualizando pantalla con estado:', sala);
+        console.log('Actualizando pantalla con estado completo:', sala);
+        console.log('Mi símbolo actual:', this.miSimbolo, 'Mi jugador:', this.jugador);
         
         this.actualizarInfoSala();
         this.actualizarJugadores(sala.jugadores, sala.simbolos);
@@ -464,6 +480,8 @@ class TresEnRaya {
         const estado = document.getElementById('estado-turno');
         const jugadores = document.querySelectorAll('.jugador');
         
+        console.log('Actualizando turno. Turno actual:', turno, 'Mi símbolo:', this.miSimbolo, 'Es mi turno:', this.miSimbolo === turno);
+        
         if (estado) {
             const esMiTurno = this.miSimbolo === turno;
             
@@ -489,7 +507,6 @@ class TresEnRaya {
             }
         });
         
-        // Actualizar interactividad del tablero
         this.actualizarInteractividadTablero();
     }
     
@@ -539,7 +556,6 @@ class TresEnRaya {
                 break;
         }
         
-        // Actualizar interactividad del tablero cuando cambia el estado
         this.actualizarInteractividadTablero();
     }
     
@@ -562,7 +578,7 @@ class TresEnRaya {
         this.turnoActual = null;
         this.estadoActual = null;
         this.mostrarPantalla('inicio');
-        this.inicializarTablero(); // Reiniciar tablero
+        this.inicializarTablero();
     }
 }
 
