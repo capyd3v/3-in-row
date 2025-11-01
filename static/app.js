@@ -38,15 +38,25 @@ class TresEnRaya {
     }
     
     mostrarPantalla(pantalla) {
-        Object.values(this.pantallas).forEach(p => p.classList.remove('activa'));
-        this.pantallas[pantalla].classList.add('activa');
+        Object.values(this.pantallas).forEach(p => {
+            if (p) p.classList.remove('activa');
+        });
+        if (this.pantallas[pantalla]) {
+            this.pantallas[pantalla].classList.add('activa');
+        }
+        
+        // Si es la pantalla de listar, cargar salas
+        if (pantalla === 'listar') {
+            setTimeout(() => this.obtenerSalasDisponibles(), 100);
+        }
     }
     
-    async conectarWebSocket() {
+    async conectarWebSocket(salaId = 'temp', jugador = 'temp') {
         return new Promise((resolve, reject) => {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws/${this.salaId || 'temp'}/${this.jugador || 'temp'}`;
+            const wsUrl = `${protocol}//${window.location.host}/ws/${salaId}/${jugador}`;
             
+            console.log('Conectando a:', wsUrl);
             this.ws = new WebSocket(wsUrl);
             
             this.ws.onopen = () => {
@@ -55,13 +65,13 @@ class TresEnRaya {
             };
             
             this.ws.onmessage = (event) => {
+                console.log('Mensaje recibido:', event.data);
                 const mensaje = JSON.parse(event.data);
                 this.procesarMensaje(mensaje);
             };
             
             this.ws.onclose = () => {
                 console.log('Conexión cerrada');
-                // No reconectar automáticamente para evitar múltiples conexiones
             };
             
             this.ws.onerror = (error) => {
@@ -78,7 +88,7 @@ class TresEnRaya {
     }
     
     procesarMensaje(mensaje) {
-        console.log('Mensaje recibido:', mensaje);
+        console.log('Procesando mensaje:', mensaje);
         
         switch(mensaje.tipo) {
             case 'sala_creada':
@@ -107,6 +117,7 @@ class TresEnRaya {
                 break;
                 
             case 'lista_salas':
+                console.log('Salas recibidas:', mensaje.salas);
                 this.mostrarSalasDisponibles(mensaje.salas);
                 break;
                 
@@ -128,10 +139,16 @@ class TresEnRaya {
         }
         
         try {
-            await this.conectarWebSocket();
+            await this.conectarWebSocket('temp', this.jugador);
             
             // Esperar a que la conexión esté realmente lista
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => {
+                if (this.ws.readyState === WebSocket.OPEN) {
+                    resolve();
+                } else {
+                    this.ws.addEventListener('open', resolve);
+                }
+            });
             
             this.ws.send(JSON.stringify({
                 tipo: 'crear_sala',
@@ -139,90 +156,39 @@ class TresEnRaya {
                 jugador: this.jugador
             }));
         } catch (error) {
+            console.error('Error:', error);
             alert('Error al conectar con el servidor');
         }
     }
     
-    async unirSalaDirecto(salaId, clave) {
-        try {
-            this.salaId = salaId;
-            await this.conectarWebSocket();
-            
-            // Esperar a que la conexión esté realmente lista
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            this.ws.send(JSON.stringify({
-                tipo: 'unir_sala',
-                clave: clave,
-                jugador: this.jugador
-            }));
-            
-            this.mostrarPantallaJuego();
-        } catch (error) {
-            alert('Error al unirse a la sala');
-        }
-    }
-    
-    async unirSala(e) {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        this.jugador = formData.get('jugador').trim();
-        const salaId = formData.get('sala_id');
-        const clave = formData.get('clave');
-        
-        if (!this.jugador) {
-            alert('Por favor ingresa tu nombre');
-            return;
-        }
-        
-        await this.unirSalaDirecto(salaId, clave);
-    }
-    
-    mostrarPantallaJuego() {
-        this.mostrarPantalla('juego');
-        this.solicitarEstado();
-    }
-    
-    solicitarEstado() {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({
-                tipo: 'obtener_estado'
-            }));
-        }
-    }
-    
-    mostrarMensajeEspera() {
-        const estadoElemento = document.getElementById('estado-juego');
-        estadoElemento.textContent = '🕐 Esperando a que se una otro jugador...';
-        estadoElemento.className = 'estado-juego esperando';
-    }
-    
-    ocultarMensajeEspera() {
-        const estadoElemento = document.getElementById('estado-juego');
-        estadoElemento.textContent = '¡Juego en progreso!';
-        estadoElemento.className = 'estado-juego';
-    }
-    
     async obtenerSalasDisponibles() {
         try {
-            // Crear conexión temporal para obtener salas
+            console.log('Obteniendo salas disponibles...');
+            
+            // Crear una conexión temporal específica para obtener salas
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws/temp/temp`;
+            const wsUrl = `${protocol}//${window.location.host}/ws/lista/salas`;
             
             const tempWs = new WebSocket(wsUrl);
             
             tempWs.onopen = () => {
+                console.log('Conexión temporal abierta para obtener salas');
                 tempWs.send(JSON.stringify({
                     tipo: 'obtener_salas'
                 }));
             };
             
             tempWs.onmessage = (event) => {
+                console.log('Respuesta de salas:', event.data);
                 const mensaje = JSON.parse(event.data);
                 if (mensaje.tipo === 'lista_salas') {
                     this.mostrarSalasDisponibles(mensaje.salas);
                 }
                 tempWs.close();
+            };
+            
+            tempWs.onerror = (error) => {
+                console.error('Error en conexión temporal:', error);
             };
             
         } catch (error) {
@@ -232,10 +198,16 @@ class TresEnRaya {
     
     mostrarSalasDisponibles(salas) {
         const lista = document.getElementById('lista-salas');
+        if (!lista) {
+            console.error('Elemento lista-salas no encontrado');
+            return;
+        }
+        
+        console.log('Mostrando salas:', salas);
         lista.innerHTML = '';
         
-        if (salas.length === 0) {
-            lista.innerHTML = '<div class="no-salas">No hay salas disponibles</div>';
+        if (!salas || salas.length === 0) {
+            lista.innerHTML = '<div class="no-salas">No hay salas disponibles. Crea una nueva sala!</div>';
             return;
         }
         
@@ -259,8 +231,16 @@ class TresEnRaya {
     }
     
     async unirseASalaDesdeLista(salaId) {
-        const clave = document.getElementById(`clave-${salaId}`).value;
-        const nombre = document.getElementById(`nombre-${salaId}`).value;
+        const claveInput = document.getElementById(`clave-${salaId}`);
+        const nombreInput = document.getElementById(`nombre-${salaId}`);
+        
+        if (!claveInput || !nombreInput) {
+            alert('Error: No se encontraron los campos de entrada');
+            return;
+        }
+        
+        const clave = claveInput.value;
+        const nombre = nombreInput.value.trim();
         
         if (!nombre) {
             alert('Por favor ingresa tu nombre');
@@ -273,7 +253,96 @@ class TresEnRaya {
         }
         
         this.jugador = nombre;
-        await this.unirSalaDirecto(salaId, clave);
+        this.salaId = salaId;
+        
+        try {
+            await this.conectarWebSocket(salaId, nombre);
+            
+            // Esperar a que la conexión esté lista
+            await new Promise(resolve => {
+                if (this.ws.readyState === WebSocket.OPEN) {
+                    resolve();
+                } else {
+                    this.ws.addEventListener('open', resolve);
+                }
+            });
+            
+            this.ws.send(JSON.stringify({
+                tipo: 'unir_sala',
+                clave: clave,
+                jugador: nombre
+            }));
+            
+        } catch (error) {
+            console.error('Error al unirse:', error);
+            alert('Error al unirse a la sala');
+        }
+    }
+    
+    // ... (mantener el resto de los métodos igual)
+    async unirSala(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        this.jugador = formData.get('jugador').trim();
+        const salaId = formData.get('sala_id');
+        const clave = formData.get('clave');
+        
+        if (!this.jugador) {
+            alert('Por favor ingresa tu nombre');
+            return;
+        }
+        
+        this.salaId = salaId;
+        
+        try {
+            await this.conectarWebSocket(salaId, this.jugador);
+            
+            await new Promise(resolve => {
+                if (this.ws.readyState === WebSocket.OPEN) {
+                    resolve();
+                } else {
+                    this.ws.addEventListener('open', resolve);
+                }
+            });
+            
+            this.ws.send(JSON.stringify({
+                tipo: 'unir_sala',
+                clave: clave,
+                jugador: this.jugador
+            }));
+            
+        } catch (error) {
+            alert('Error al unirse a la sala');
+        }
+    }
+    
+    mostrarPantallaJuego() {
+        this.mostrarPantalla('juego');
+        this.solicitarEstado();
+    }
+    
+    solicitarEstado() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+                tipo: 'obtener_estado'
+            }));
+        }
+    }
+    
+    mostrarMensajeEspera() {
+        const estadoElemento = document.getElementById('estado-juego');
+        if (estadoElemento) {
+            estadoElemento.textContent = '🕐 Esperando a que se una otro jugador...';
+            estadoElemento.className = 'estado-juego esperando';
+        }
+    }
+    
+    ocultarMensajeEspera() {
+        const estadoElemento = document.getElementById('estado-juego');
+        if (estadoElemento) {
+            estadoElemento.textContent = '¡Juego en progreso!';
+            estadoElemento.className = 'estado-juego';
+        }
     }
     
     actualizarPantallaConEstado(sala) {
@@ -288,13 +357,17 @@ class TresEnRaya {
         }
     }
     
-    // ... (el resto de los métodos se mantienen igual)
     actualizarInfoSala() {
-        document.getElementById('sala-id').textContent = this.salaId;
+        const elemento = document.getElementById('sala-id');
+        if (elemento) {
+            elemento.textContent = this.salaId;
+        }
     }
     
     actualizarJugadores(jugadores) {
         const contenedor = document.getElementById('jugadores');
+        if (!contenedor) return;
+        
         contenedor.innerHTML = '';
         
         jugadores.forEach((jugador, index) => {
@@ -307,6 +380,8 @@ class TresEnRaya {
     
     inicializarTablero() {
         const tablero = document.getElementById('tablero');
+        if (!tablero) return;
+        
         tablero.innerHTML = '';
         
         for (let i = 0; i < 9; i++) {
@@ -344,7 +419,9 @@ class TresEnRaya {
         const estado = document.getElementById('estado-turno');
         const jugadores = document.querySelectorAll('.jugador');
         
-        estado.textContent = `Turno de: ${turno}`;
+        if (estado) {
+            estado.textContent = `Turno de: ${turno}`;
+        }
         
         jugadores.forEach((jugador, index) => {
             const simboloJugador = index === 0 ? 'X' : 'O';
@@ -358,10 +435,11 @@ class TresEnRaya {
     
     actualizarEstado(estado, ganador = null) {
         const estadoElemento = document.getElementById('estado-juego');
+        if (!estadoElemento) return;
         
         switch(estado) {
             case 'esperando':
-                if (!document.querySelector('.esperando')) {
+                if (!estadoElemento.classList.contains('esperando')) {
                     this.mostrarMensajeEspera();
                 }
                 break;
