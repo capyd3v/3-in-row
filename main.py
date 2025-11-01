@@ -125,8 +125,11 @@ class SalaManager:
         if self.verificar_ganador(sala["tablero"], simbolo_jugador):
             sala["estado"] = "terminado"
             sala["ganador"] = jugador
-            # Incrementar marcador del ganador
-            sala["marcador"][jugador] += 1
+            # Incrementar marcador del ganador - CORRECCIÓN: usar el nombre del jugador directamente
+            if jugador in sala["marcador"]:
+                sala["marcador"][jugador] += 1
+            else:
+                sala["marcador"][jugador] = 1
             sala["partidas_jugadas"] += 1
             print(f"¡{jugador} gana la partida! Marcador: {sala['marcador']}")
         elif all(celda != "" for celda in sala["tablero"]):
@@ -195,19 +198,21 @@ class SalaManager:
             
             sala["simbolos"][ganador_anterior] = "O"
             sala["simbolos"][perdedor] = "X"
+            # El que perdió empieza (el que ahora tiene X)
+            sala["turno"] = "X"
         else:
             # En caso de empate o primera partida, alternar aleatoriamente
             simbolos = ["X", "O"]
             random.shuffle(simbolos)
             for i, jugador in enumerate(sala["jugadores"]):
                 sala["simbolos"][jugador] = simbolos[i]
+            # El que tiene X empieza
+            sala["turno"] = "X"
         
-        # El que tiene X empieza
-        sala["turno"] = "X"
         sala["estado"] = "jugando"
         sala["ganador"] = None
         
-        print(f"Partida reiniciada en sala {sala_id}. Nuevos símbolos: {sala['simbolos']}")
+        print(f"Partida reiniciada en sala {sala_id}. Nuevos símbolos: {sala['simbolos']}, Turno: {sala['turno']}")
     
     def obtener_info_sala(self, sala_id: str) -> Dict:
         return self.salas.get(sala_id)
