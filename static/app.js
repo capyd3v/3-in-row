@@ -6,6 +6,9 @@ class TresEnRaya {
         this.miSimbolo = null;
         this.turnoActual = null;
         this.estadoActual = null;
+        this.marcador = {};
+        this.partidasJugadas = 0;
+        this.reinicioPendiente = [];
         this.pantallas = {
             inicio: document.getElementById('pantalla-inicio'),
             crear: document.getElementById('pantalla-crear'),
@@ -31,6 +34,9 @@ class TresEnRaya {
         // Formularios
         document.getElementById('form-crear-sala').addEventListener('submit', (e) => this.crearSala(e));
         document.getElementById('form-unir-sala').addEventListener('submit', (e) => this.unirSala(e));
+        
+        // Botón de reinicio
+        document.getElementById('btn-reiniciar').addEventListener('click', () => this.solicitarReinicio());
         
         document.getElementById('btn-unir-sala').addEventListener('click', () => {
             setTimeout(() => this.obtenerSalasDisponibles(), 100);
@@ -210,16 +216,29 @@ class TresEnRaya {
                 this.actualizarTablero(mensaje.tablero);
                 this.actualizarTurno(mensaje.turno);
                 this.actualizarEstado(mensaje.estado, mensaje.ganador);
+                this.actualizarMarcador(mensaje.marcador, mensaje.partidas_jugadas);
                 break;
                 
             case 'estado_actual':
                 this.miSimbolo = mensaje.tu_simbolo;
                 console.log('Estado actual. Mi símbolo:', this.miSimbolo, 'Sala:', mensaje.sala);
                 this.actualizarPantallaConEstado(mensaje.sala);
+                this.actualizarMarcador(mensaje.marcador, mensaje.partidas_jugadas);
                 break;
                 
             case 'lista_salas':
                 this.mostrarSalasDisponibles(mensaje.salas);
+                break;
+                
+            case 'reinicio_pendiente':
+                this.actualizarEstadoReinicio(mensaje.solicitado_por, mensaje.esperando_a, mensaje.reinicio_pendiente);
+                break;
+                
+            case 'partida_reiniciada':
+                console.log('Partida reiniciada:', mensaje.sala);
+                this.actualizarPantallaConEstado(mensaje.sala);
+                this.actualizarMarcador(mensaje.marcador);
+                this.ocultarBotonReinicio();
                 break;
                 
             case 'jugador_desconectado':
@@ -438,6 +457,7 @@ class TresEnRaya {
         this.actualizarTablero(sala.tablero);
         this.actualizarTurno(sala.turno);
         this.actualizarEstado(sala.estado, sala.ganador);
+        this.actualizarMarcador(sala.marcador, sala.partidas_jugadas);
         
         if (sala.estado === 'esperando' && sala.jugadores.length === 1) {
             this.mostrarMensajeEspera();
@@ -538,10 +558,12 @@ class TresEnRaya {
         switch(estado) {
             case 'esperando':
                 this.mostrarMensajeEspera();
+                this.ocultarBotonReinicio();
                 break;
             case 'jugando':
                 estadoElemento.textContent = '¡Juego en progreso!';
                 estadoElemento.className = 'estado-juego';
+                this.ocultarBotonReinicio();
                 break;
             case 'terminado':
                 const esGanador = ganador === this.jugador;
@@ -549,14 +571,95 @@ class TresEnRaya {
                     '🎉 ¡Has ganado!' : 
                     `🏆 Ganador: ${ganador}`;
                 estadoElemento.className = 'estado-juego ganador';
+                this.mostrarBotonReinicio();
                 break;
             case 'empate':
                 estadoElemento.textContent = '🤝 ¡Empate!';
                 estadoElemento.className = 'estado-juego';
+                this.mostrarBotonReinicio();
                 break;
         }
         
         this.actualizarInteractividadTablero();
+    }
+    
+    actualizarMarcador(marcador, partidasJugadas = 0) {
+        this.marcador = marcador || {};
+        this.partidasJugadas = partidasJugadas;
+        
+        const marcadorElemento = document.getElementById('marcador');
+        if (!marcadorElemento) return;
+        
+        if (Object.keys(this.marcador).length === 0) {
+            marcadorElemento.innerHTML = '';
+            return;
+        }
+        
+        let html = '<div class="marcador-info">';
+        for (const [jugador, victorias] of Object.entries(this.marcador)) {
+            const esYo = jugador === this.jugador;
+            html += `<div class="marcador-jugador ${esYo ? 'marcador-yo' : ''}">
+                <span class="marcador-nombre">${jugador}:</span>
+                <span class="marcador-victorias">${victorias} victoria${victorias !== 1 ? 's' : ''}</span>
+            </div>`;
+        }
+        html += `<div class="marcador-partidas">Partidas: ${this.partidasJugadas}</div>`;
+        html += '</div>';
+        
+        marcadorElemento.innerHTML = html;
+    }
+    
+    mostrarBotonReinicio() {
+        const contenedor = document.getElementById('contenedor-reinicio');
+        const boton = document.getElementById('btn-reiniciar');
+        const estado = document.getElementById('estado-reinicio');
+        
+        if (contenedor && boton && estado) {
+            contenedor.style.display = 'block';
+            boton.textContent = '🔄 Reiniciar Partida';
+            boton.disabled = false;
+            estado.textContent = '';
+        }
+    }
+    
+    ocultarBotonReinicio() {
+        const contenedor = document.getElementById('contenedor-reinicio');
+        if (contenedor) {
+            contenedor.style.display = 'none';
+        }
+    }
+    
+    actualizarEstadoReinicio(solicitadoPor, esperandoA, reinicioPendiente) {
+        this.reinicioPendiente = reinicioPendiente || [];
+        
+        const boton = document.getElementById('btn-reiniciar');
+        const estado = document.getElementById('estado-reinicio');
+        
+        if (this.reinicioPendiente.includes(this.jugador)) {
+            // Ya he aceptado el reinicio
+            boton.disabled = true;
+            boton.textContent = '✅ Esperando al oponente';
+            estado.textContent = `Esperando a que ${esperandoA} acepte el reinicio`;
+            estado.style.color = '#ff6b00';
+        } else {
+            // Aún no he aceptado
+            boton.disabled = false;
+            boton.textContent = '🔄 Reiniciar Partida';
+            estado.textContent = `${solicitadoPor} quiere reiniciar la partida`;
+            estado.style.color = '#667eea';
+        }
+    }
+    
+    solicitarReinicio() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            console.log('Solicitando reinicio de partida');
+            this.ws.send(JSON.stringify({
+                tipo: 'solicitar_reinicio'
+            }));
+        } else {
+            console.log('WebSocket no está conectado');
+            alert('Error de conexión');
+        }
     }
     
     ocultarMensajeEspera() {
@@ -577,8 +680,12 @@ class TresEnRaya {
         this.miSimbolo = null;
         this.turnoActual = null;
         this.estadoActual = null;
+        this.marcador = {};
+        this.partidasJugadas = 0;
+        this.reinicioPendiente = [];
         this.mostrarPantalla('inicio');
         this.inicializarTablero();
+        this.ocultarBotonReinicio();
     }
 }
 
