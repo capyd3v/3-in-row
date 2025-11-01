@@ -11,6 +11,8 @@ app = FastAPI(title="3 en Raya Online")
 
 # Almacenamiento en memoria de salas y conexiones
 conexiones: Dict[str, WebSocket] = {}
+# Mapeo de jugador a sala actual
+jugador_sala: Dict[str, str] = {}
 
 class SalaManager:
     def __init__(self):
@@ -211,6 +213,7 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
     # Guardar conexión
     if jugador != "temp" and jugador != "salas":
         conexiones[jugador] = websocket
+        jugador_sala[jugador] = sala_id  # Registrar la sala actual del jugador
         print(f"Jugador {jugador} conectado a sala {sala_id}")
     
     try:
@@ -222,6 +225,10 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                 clave = mensaje["clave"]
                 jugador_nombre = mensaje.get("jugador", jugador)
                 sala_id_nueva = sala_manager.crear_sala(clave, jugador_nombre)
+                
+                # Actualizar la sala del jugador
+                jugador_sala[jugador_nombre] = sala_id_nueva
+                
                 await websocket.send_text(json.dumps({
                     "tipo": "sala_creada",
                     "sala_id": sala_id_nueva
@@ -235,6 +242,9 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                 if resultado["exito"]:
                     sala = resultado["sala"]
                     simbolo_jugador = sala_manager.obtener_simbolo_jugador(sala_id, jugador_nombre)
+                    
+                    # Actualizar la sala del jugador
+                    jugador_sala[jugador_nombre] = sala_id
                     
                     # Enviar estado actual al jugador que se unió
                     await websocket.send_text(json.dumps({
@@ -256,10 +266,21 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
             
             elif mensaje["tipo"] == "movimiento":
                 posicion = mensaje["posicion"]
-                print(f"Recibido movimiento de {jugador} en posición {posicion} para sala {sala_id}")
+                print(f"Recibido movimiento de {jugador} en posición {posicion}")
+                
+                # Obtener la sala REAL del jugador (no la del WebSocket)
+                sala_id_real = jugador_sala.get(jugador)
+                if not sala_id_real:
+                    await websocket.send_text(json.dumps({
+                        "tipo": "error",
+                        "mensaje": "No estás en ninguna sala"
+                    }))
+                    continue
+                
+                print(f"Jugador {jugador} está en sala real: {sala_id_real}")
                 
                 # Verificar que la sala existe
-                sala = sala_manager.obtener_info_sala(sala_id)
+                sala = sala_manager.obtener_info_sala(sala_id_real)
                 if not sala:
                     await websocket.send_text(json.dumps({
                         "tipo": "error",
@@ -275,10 +296,10 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                     }))
                     continue
                 
-                if sala_manager.hacer_movimiento(sala_id, posicion, jugador):
-                    sala = sala_manager.obtener_info_sala(sala_id)
+                if sala_manager.hacer_movimiento(sala_id_real, posicion, jugador):
+                    sala = sala_manager.obtener_info_sala(sala_id_real)
                     # Notificar a todos en la sala
-                    await enviar_a_todos_en_sala(sala_id, {
+                    await enviar_a_todos_en_sala(sala_id_real, {
                         "tipo": "actualizar_tablero",
                         "tablero": sala["tablero"],
                         "turno": sala["turno"],
@@ -287,8 +308,8 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                     })
                 else:
                     # Obtener información de debug para el error
-                    sala = sala_manager.obtener_info_sala(sala_id)
-                    simbolo_jugador = sala_manager.obtener_simbolo_jugador(sala_id, jugador)
+                    sala = sala_manager.obtener_info_sala(sala_id_real)
+                    simbolo_jugador = sala_manager.obtener_simbolo_jugador(sala_id_real, jugador)
                     
                     error_msg = f"Movimiento inválido. Turno actual: {sala['turno']}, Tu símbolo: {simbolo_jugador}"
                     print(f"Error: {error_msg}")
@@ -300,14 +321,17 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                     }))
             
             elif mensaje["tipo"] == "obtener_estado":
-                sala = sala_manager.obtener_info_sala(sala_id)
-                if sala:
-                    simbolo_jugador = sala_manager.obtener_simbolo_jugador(sala_id, jugador)
-                    await websocket.send_text(json.dumps({
-                        "tipo": "estado_actual",
-                        "sala": sala,
-                        "tu_simbolo": simbolo_jugador
-                    }))
+                # Obtener la sala REAL del jugador
+                sala_id_real = jugador_sala.get(jugador)
+                if sala_id_real:
+                    sala = sala_manager.obtener_info_sala(sala_id_real)
+                    if sala:
+                        simbolo_jugador = sala_manager.obtener_simbolo_jugador(sala_id_real, jugador)
+                        await websocket.send_text(json.dumps({
+                            "tipo": "estado_actual",
+                            "sala": sala,
+                            "tu_simbolo": simbolo_jugador
+                        }))
             
             elif mensaje["tipo"] == "obtener_salas":
                 sala_manager.eliminar_sala_antigua()
@@ -323,22 +347,26 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
             del conexiones[jugador]
         
         # Limpiar sala si está vacía
-        sala = sala_manager.obtener_info_sala(sala_id)
-        if sala and jugador in sala["jugadores"]:
-            sala["jugadores"].remove(jugador)
-            if jugador in sala["simbolos"]:
-                del sala["simbolos"][jugador]
+        sala_id_real = jugador_sala.get(jugador)
+        if sala_id_real and jugador in jugador_sala:
+            del jugador_sala[jugador]
             
-            # Si la sala queda vacía, eliminarla
-            if not sala["jugadores"]:
-                sala_manager.eliminar_sala(sala_id)
-                print(f"Sala {sala_id} eliminada por estar vacía")
-            else:
-                # Notificar al otro jugador que se desconectó
-                await enviar_a_todos_en_sala(sala_id, {
-                    "tipo": "jugador_desconectado",
-                    "mensaje": f"El jugador {jugador} se ha desconectado"
-                })
+            sala = sala_manager.obtener_info_sala(sala_id_real)
+            if sala and jugador in sala["jugadores"]:
+                sala["jugadores"].remove(jugador)
+                if jugador in sala["simbolos"]:
+                    del sala["simbolos"][jugador]
+                
+                # Si la sala queda vacía, eliminarla
+                if not sala["jugadores"]:
+                    sala_manager.eliminar_sala(sala_id_real)
+                    print(f"Sala {sala_id_real} eliminada por estar vacía")
+                else:
+                    # Notificar al otro jugador que se desconectó
+                    await enviar_a_todos_en_sala(sala_id_real, {
+                        "tipo": "jugador_desconectado",
+                        "mensaje": f"El jugador {jugador} se ha desconectado"
+                    })
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
