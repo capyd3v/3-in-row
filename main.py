@@ -31,7 +31,11 @@ class SalaManager:
             "estado": "esperando",
             "ganador": None,
             "creador": creador,
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            # Nuevos campos para reinicio y marcador
+            "reinicio_pendiente": [],
+            "marcador": {creador: 0},  # Victorias por jugador
+            "partidas_jugadas": 0
         }
         print(f"Sala creada: {sala_id} por {creador} como X")
         print(f"Simbolos en sala: {self.salas[sala_id]['simbolos']}")
@@ -51,6 +55,8 @@ class SalaManager:
         # Asignar O al segundo jugador
         sala["jugadores"].append(jugador)
         sala["simbolos"][jugador] = "O"
+        # Inicializar marcador para el nuevo jugador
+        sala["marcador"][jugador] = 0
         
         # Cuando se une el segundo jugador, decidir aleatoriamente quién empieza
         if len(sala["jugadores"]) == 2:
@@ -119,9 +125,13 @@ class SalaManager:
         if self.verificar_ganador(sala["tablero"], simbolo_jugador):
             sala["estado"] = "terminado"
             sala["ganador"] = jugador
-            print(f"¡{jugador} gana la partida!")
+            # Incrementar marcador del ganador
+            sala["marcador"][jugador] += 1
+            sala["partidas_jugadas"] += 1
+            print(f"¡{jugador} gana la partida! Marcador: {sala['marcador']}")
         elif all(celda != "" for celda in sala["tablero"]):
             sala["estado"] = "empate"
+            sala["partidas_jugadas"] += 1
             print("¡Empate!")
         else:
             # Cambiar turno
@@ -141,6 +151,63 @@ class SalaManager:
             if all(tablero[pos] == jugador for pos in linea):
                 return True
         return False
+    
+    def solicitar_reinicio(self, sala_id: str, jugador: str) -> Dict:
+        """Solicitar reinicio de partida"""
+        sala = self.salas.get(sala_id)
+        if not sala:
+            return {"exito": False, "mensaje": "Sala no encontrada"}
+        
+        if sala["estado"] not in ["terminado", "empate"]:
+            return {"exito": False, "mensaje": "La partida no ha terminado"}
+        
+        if jugador not in sala["reinicio_pendiente"]:
+            sala["reinicio_pendiente"].append(jugador)
+            print(f"Jugador {jugador} solicita reinicio. Pendientes: {sala['reinicio_pendiente']}")
+        
+        # Verificar si ambos jugadores han aceptado el reinicio
+        if len(sala["reinicio_pendiente"]) == 2:
+            # Reiniciar partida
+            self.reiniciar_partida(sala_id)
+            return {"exito": True, "reiniciado": True, "sala": sala}
+        else:
+            # Encontrar quién falta por aceptar
+            jugadores_faltantes = [j for j in sala["jugadores"] if j not in sala["reinicio_pendiente"]]
+            return {"exito": True, "reiniciado": False, "faltante": jugadores_faltantes[0] if jugadores_faltantes else None}
+    
+    def reiniciar_partida(self, sala_id: str):
+        """Reiniciar completamente la partida"""
+        sala = self.salas.get(sala_id)
+        if not sala:
+            return
+        
+        # Limpiar tablero
+        sala["tablero"] = [""] * 9
+        
+        # Reiniciar estado de reinicio
+        sala["reinicio_pendiente"] = []
+        
+        # Intercambiar símbolos para dar ventaja al que perdió
+        if sala["ganador"] and len(sala["jugadores"]) == 2:
+            # El ganador anterior ahora será O, el perdedor será X
+            ganador_anterior = sala["ganador"]
+            perdedor = [j for j in sala["jugadores"] if j != ganador_anterior][0]
+            
+            sala["simbolos"][ganador_anterior] = "O"
+            sala["simbolos"][perdedor] = "X"
+        else:
+            # En caso de empate o primera partida, alternar aleatoriamente
+            simbolos = ["X", "O"]
+            random.shuffle(simbolos)
+            for i, jugador in enumerate(sala["jugadores"]):
+                sala["simbolos"][jugador] = simbolos[i]
+        
+        # El que tiene X empieza
+        sala["turno"] = "X"
+        sala["estado"] = "jugando"
+        sala["ganador"] = None
+        
+        print(f"Partida reiniciada en sala {sala_id}. Nuevos símbolos: {sala['simbolos']}")
     
     def obtener_info_sala(self, sala_id: str) -> Dict:
         return self.salas.get(sala_id)
@@ -304,7 +371,9 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                         "tablero": sala["tablero"],
                         "turno": sala["turno"],
                         "estado": sala["estado"],
-                        "ganador": sala["ganador"]
+                        "ganador": sala["ganador"],
+                        "marcador": sala["marcador"],
+                        "partidas_jugadas": sala["partidas_jugadas"]
                     })
                 else:
                     # Obtener información de debug para el error
@@ -320,6 +389,42 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                         "mensaje": error_msg
                     }))
             
+            elif mensaje["tipo"] == "solicitar_reinicio":
+                # Obtener la sala REAL del jugador
+                sala_id_real = jugador_sala.get(jugador)
+                if not sala_id_real:
+                    await websocket.send_text(json.dumps({
+                        "tipo": "error",
+                        "mensaje": "No estás en ninguna sala"
+                    }))
+                    continue
+                
+                resultado = sala_manager.solicitar_reinicio(sala_id_real, jugador)
+                
+                if resultado["exito"]:
+                    if resultado.get("reiniciado"):
+                        # Partida reiniciada, enviar nuevo estado a todos
+                        sala = sala_manager.obtener_info_sala(sala_id_real)
+                        await enviar_a_todos_en_sala(sala_id_real, {
+                            "tipo": "partida_reiniciada",
+                            "sala": sala,
+                            "marcador": sala["marcador"]
+                        })
+                    else:
+                        # Solo un jugador ha aceptado, notificar a todos
+                        sala = sala_manager.obtener_info_sala(sala_id_real)
+                        await enviar_a_todos_en_sala(sala_id_real, {
+                            "tipo": "reinicio_pendiente",
+                            "solicitado_por": jugador,
+                            "esperando_a": resultado["faltante"],
+                            "reinicio_pendiente": sala["reinicio_pendiente"]
+                        })
+                else:
+                    await websocket.send_text(json.dumps({
+                        "tipo": "error",
+                        "mensaje": resultado["mensaje"]
+                    }))
+            
             elif mensaje["tipo"] == "obtener_estado":
                 # Obtener la sala REAL del jugador
                 sala_id_real = jugador_sala.get(jugador)
@@ -330,7 +435,9 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                         await websocket.send_text(json.dumps({
                             "tipo": "estado_actual",
                             "sala": sala,
-                            "tu_simbolo": simbolo_jugador
+                            "tu_simbolo": simbolo_jugador,
+                            "marcador": sala["marcador"],
+                            "partidas_jugadas": sala["partidas_jugadas"]
                         }))
             
             elif mensaje["tipo"] == "obtener_salas":
@@ -356,6 +463,10 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                 sala["jugadores"].remove(jugador)
                 if jugador in sala["simbolos"]:
                     del sala["simbolos"][jugador]
+                if jugador in sala["marcador"]:
+                    del sala["marcador"][jugador]
+                if jugador in sala["reinicio_pendiente"]:
+                    sala["reinicio_pendiente"].remove(jugador)
                 
                 # Si la sala queda vacía, eliminarla
                 if not sala["jugadores"]:
