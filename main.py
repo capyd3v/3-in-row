@@ -32,6 +32,7 @@ class SalaManager:
             "timestamp": time.time()
         }
         print(f"Sala creada: {sala_id} por {creador} como X")
+        print(f"Simbolos en sala: {self.salas[sala_id]['simbolos']}")
         return sala_id
     
     def unir_sala(self, sala_id: str, clave: str, jugador: str) -> Dict:
@@ -56,40 +57,61 @@ class SalaManager:
             sala["turno"] = primer_turno
             sala["estado"] = "jugando"
             print(f"Segundo jugador {jugador} unido como O. Turno inicial: {primer_turno}")
+            print(f"Simbolos actualizados: {sala['simbolos']}")
         
         return {"exito": True, "sala": sala}
     
     def obtener_simbolo_jugador(self, sala_id: str, jugador: str) -> str:
         """Obtener el símbolo (X/O) de un jugador"""
         sala = self.salas.get(sala_id)
-        return sala["simbolos"].get(jugador) if sala else None
+        if not sala:
+            print(f"Sala {sala_id} no encontrada para jugador {jugador}")
+            return None
+        
+        simbolo = sala["simbolos"].get(jugador)
+        print(f"Obteniendo símbolo para {jugador} en sala {sala_id}: {simbolo}")
+        print(f"Simbolos disponibles: {sala['simbolos']}")
+        return simbolo
     
     def hacer_movimiento(self, sala_id: str, posicion: int, jugador: str) -> bool:
         sala = self.salas.get(sala_id)
-        if not sala or sala["estado"] != "jugando":
-            print(f"No se puede mover: sala no encontrada o no en juego")
+        if not sala:
+            print(f"Sala {sala_id} no encontrada")
+            return False
+        
+        if sala["estado"] != "jugando":
+            print(f"Sala no está en estado 'jugando'. Estado actual: {sala['estado']}")
             return False
         
         # Obtener símbolo del jugador
         simbolo_jugador = self.obtener_simbolo_jugador(sala_id, jugador)
         if not simbolo_jugador:
-            print(f"Jugador {jugador} no encontrado en sala")
+            print(f"Jugador {jugador} no tiene símbolo asignado en sala {sala_id}")
             return False
+        
+        print(f"Intentando movimiento: Jugador {jugador} ({simbolo_jugador}) en posición {posicion}")
+        print(f"Turno actual: {sala['turno']}")
+        print(f"Tablero actual: {sala['tablero']}")
         
         # Verificar que es el turno del jugador
         if sala["turno"] != simbolo_jugador:
-            print(f"No es turno de {jugador}. Turno actual: {sala['turno']}")
+            print(f"No es turno de {jugador}. Turno actual: {sala['turno']}, Símbolo jugador: {simbolo_jugador}")
             return False
         
         # Verificar posición válida
-        if posicion < 0 or posicion > 8 or sala["tablero"][posicion] != "":
-            print(f"Posición {posicion} inválida o ocupada")
+        if posicion < 0 or posicion > 8:
+            print(f"Posición {posicion} fuera de rango")
             return False
         
-        print(f"Jugador {jugador} ({simbolo_jugador}) mueve en posición {posicion}")
+        if sala["tablero"][posicion] != "":
+            print(f"Posición {posicion} ya ocupada por: {sala['tablero'][posicion]}")
+            return False
+        
+        print(f"Movimiento válido. Jugador {jugador} ({simbolo_jugador}) mueve en posición {posicion}")
         
         # Hacer movimiento
         sala["tablero"][posicion] = simbolo_jugador
+        print(f"Tablero después del movimiento: {sala['tablero']}")
         
         # Verificar ganador
         if self.verificar_ganador(sala["tablero"], simbolo_jugador):
@@ -163,7 +185,7 @@ async def enviar_a_todos_en_sala(sala_id: str, mensaje: dict):
             if jugador in conexiones:
                 try:
                     await conexiones[jugador].send_text(json.dumps(mensaje))
-                    print(f"Mensaje enviado a {jugador}: {mensaje['tipo']}")
+                    print(f"Mensaje {mensaje['tipo']} enviado a {jugador}")
                 except Exception as e:
                     print(f"Error enviando a {jugador}: {e}")
 
@@ -206,11 +228,13 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                 
                 if resultado["exito"]:
                     sala = resultado["sala"]
+                    simbolo_jugador = sala_manager.obtener_simbolo_jugador(sala_id, jugador_nombre)
+                    
                     # Enviar estado actual al jugador que se unió
                     await websocket.send_text(json.dumps({
                         "tipo": "unido_exitoso",
                         "sala": sala,
-                        "tu_simbolo": sala["simbolos"][jugador_nombre]
+                        "tu_simbolo": simbolo_jugador
                     }))
                     
                     # Notificar a TODOS en la sala (incluyendo al creador)
@@ -226,7 +250,24 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
             
             elif mensaje["tipo"] == "movimiento":
                 posicion = mensaje["posicion"]
-                print(f"Recibido movimiento de {jugador} en posición {posicion}")
+                print(f"Recibido movimiento de {jugador} en posición {posicion} para sala {sala_id}")
+                
+                # Verificar que la sala existe
+                sala = sala_manager.obtener_info_sala(sala_id)
+                if not sala:
+                    await websocket.send_text(json.dumps({
+                        "tipo": "error",
+                        "mensaje": "Sala no encontrada"
+                    }))
+                    continue
+                
+                # Verificar que el jugador está en la sala
+                if jugador not in sala["jugadores"]:
+                    await websocket.send_text(json.dumps({
+                        "tipo": "error", 
+                        "mensaje": "No estás en esta sala"
+                    }))
+                    continue
                 
                 if sala_manager.hacer_movimiento(sala_id, posicion, jugador):
                     sala = sala_manager.obtener_info_sala(sala_id)
@@ -239,10 +280,17 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                         "ganador": sala["ganador"]
                     })
                 else:
+                    # Obtener información de debug para el error
+                    sala = sala_manager.obtener_info_sala(sala_id)
+                    simbolo_jugador = sala_manager.obtener_simbolo_jugador(sala_id, jugador)
+                    
+                    error_msg = f"Movimiento inválido. Turno actual: {sala['turno']}, Tu símbolo: {simbolo_jugador}"
+                    print(f"Error: {error_msg}")
+                    
                     # Enviar error solo al jugador que intentó mover
                     await websocket.send_text(json.dumps({
                         "tipo": "error",
-                        "mensaje": "Movimiento inválido. Verifica que es tu turno y la posición está vacía."
+                        "mensaje": error_msg
                     }))
             
             elif mensaje["tipo"] == "obtener_estado":
