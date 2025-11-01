@@ -9,7 +9,6 @@ import time
 app = FastAPI(title="3 en Raya Online")
 
 # Almacenamiento en memoria de salas y conexiones
-salas: Dict[str, Dict] = {}
 conexiones: Dict[str, WebSocket] = {}
 
 class SalaManager:
@@ -29,29 +28,26 @@ class SalaManager:
             "creador": creador,
             "timestamp": time.time()
         }
-        print(f"Sala creada: {sala_id} por {creador}")  # Debug
+        print(f"Sala creada: {sala_id} por {creador}")
         return sala_id
     
-    def unir_sala(self, sala_id: str, clave: str, jugador: str) -> bool:
+    def unir_sala(self, sala_id: str, clave: str, jugador: str) -> Dict:
         sala = self.salas.get(sala_id)
         if not sala:
-            print(f"Sala no encontrada: {sala_id}")  # Debug
-            return False
+            return {"exito": False, "mensaje": "Sala no encontrada"}
         if sala["clave"] != clave:
-            print(f"Clave incorrecta para sala: {sala_id}")  # Debug
-            return False
+            return {"exito": False, "mensaje": "Clave incorrecta"}
         if len(sala["jugadores"]) >= 2:
-            print(f"Sala llena: {sala_id}")  # Debug
-            return False
+            return {"exito": False, "mensaje": "Sala llena"}
         if jugador in sala["jugadores"]:
-            print(f"Jugador ya en sala: {jugador}")  # Debug
-            return False
+            return {"exito": False, "mensaje": "Ya estás en esta sala"}
             
         sala["jugadores"].append(jugador)
         if len(sala["jugadores"]) == 2:
             sala["estado"] = "jugando"
-        print(f"Jugador {jugador} unido a sala {sala_id}")  # Debug
-        return True
+        
+        print(f"Jugador {jugador} unido a sala {sala_id}. Estado: {sala['estado']}")
+        return {"exito": True, "sala": sala}
     
     def hacer_movimiento(self, sala_id: str, posicion: int, jugador: str) -> bool:
         sala = self.salas.get(sala_id)
@@ -85,11 +81,10 @@ class SalaManager:
         return True
     
     def verificar_ganador(self, tablero: List[str], jugador: str) -> bool:
-        # Combinaciones ganadoras
         lineas_ganadoras = [
-            [0, 1, 2], [3, 4, 5], [6, 7, 8],  # Horizontales
-            [0, 3, 6], [1, 4, 7], [2, 5, 8],  # Verticales
-            [0, 4, 8], [2, 4, 6]              # Diagonales
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
         ]
         
         for linea in lineas_ganadoras:
@@ -101,18 +96,12 @@ class SalaManager:
         return self.salas.get(sala_id)
     
     def obtener_salas_publicas(self) -> List[Dict]:
-        # Retornar salas que no están llenas y tienen menos de 10 minutos
         ahora = time.time()
         salas_publicas = []
         
-        print(f"Total de salas: {len(self.salas)}")  # Debug
-        
         for sala_id, sala in self.salas.items():
-            print(f"Revisando sala: {sala_id}, jugadores: {len(sala['jugadores'])}, estado: {sala['estado']}")  # Debug
-            
-            # Solo mostrar salas con menos de 10 minutos, que no estén llenas y estén esperando
             es_valida = (
-                ahora - sala["timestamp"] < 600 and  # 10 minutos
+                ahora - sala["timestamp"] < 600 and
                 len(sala["jugadores"]) < 2 and 
                 sala["estado"] == "esperando"
             )
@@ -124,25 +113,32 @@ class SalaManager:
                     "creador": sala["creador"],
                     "cantidad_jugadores": len(sala["jugadores"])
                 })
-                print(f"Sala válida agregada: {sala_id}")  # Debug
         
-        print(f"Salas públicas encontradas: {len(salas_publicas)}")  # Debug
         return salas_publicas
     
     def eliminar_sala_antigua(self):
-        """Eliminar salas antiguas para mantener limpieza"""
         ahora = time.time()
         salas_a_eliminar = []
         
         for sala_id, sala in self.salas.items():
-            if ahora - sala["timestamp"] > 1800:  # 30 minutos
+            if ahora - sala["timestamp"] > 1800:
                 salas_a_eliminar.append(sala_id)
         
         for sala_id in salas_a_eliminar:
             del self.salas[sala_id]
-            print(f"Sala antigua eliminada: {sala_id}")
 
 sala_manager = SalaManager()
+
+async def enviar_a_todos_en_sala(sala_id: str, mensaje: dict):
+    """Envía un mensaje a todos los jugadores en una sala"""
+    sala = sala_manager.obtener_info_sala(sala_id)
+    if sala:
+        for jugador in sala["jugadores"]:
+            if jugador in conexiones:
+                try:
+                    await conexiones[jugador].send_text(json.dumps(mensaje))
+                except Exception as e:
+                    print(f"Error enviando a {jugador}: {e}")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -157,9 +153,10 @@ async def favicon():
 async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
     await websocket.accept()
     
-    # Guardar conexión temporal para salas públicas
-    if jugador != "temp":
+    # Guardar conexión
+    if jugador != "temp" and jugador != "salas":
         conexiones[jugador] = websocket
+        print(f"Jugador {jugador} conectado a sala {sala_id}")
     
     try:
         while True:
@@ -178,20 +175,25 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
             elif mensaje["tipo"] == "unir_sala":
                 clave = mensaje["clave"]
                 jugador_nombre = mensaje.get("jugador", jugador)
-                if sala_manager.unir_sala(sala_id, clave, jugador_nombre):
-                    # Notificar a todos en la sala
-                    sala = sala_manager.obtener_info_sala(sala_id)
-                    for j in sala["jugadores"]:
-                        if j in conexiones:
-                            await conexiones[j].send_text(json.dumps({
-                                "tipo": "jugador_unido",
-                                "jugadores": sala["jugadores"],
-                                "estado": sala["estado"]
-                            }))
+                resultado = sala_manager.unir_sala(sala_id, clave, jugador_nombre)
+                
+                if resultado["exito"]:
+                    sala = resultado["sala"]
+                    # Enviar estado actual al jugador que se unió
+                    await websocket.send_text(json.dumps({
+                        "tipo": "unido_exitoso",
+                        "sala": sala
+                    }))
+                    
+                    # Notificar a TODOS en la sala (incluyendo al creador)
+                    await enviar_a_todos_en_sala(sala_id, {
+                        "tipo": "estado_actualizado",
+                        "sala": sala
+                    })
                 else:
                     await websocket.send_text(json.dumps({
                         "tipo": "error",
-                        "mensaje": "No se pudo unir a la sala. Verifica el ID y la clave."
+                        "mensaje": resultado["mensaje"]
                     }))
             
             elif mensaje["tipo"] == "movimiento":
@@ -199,15 +201,13 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                 if sala_manager.hacer_movimiento(sala_id, posicion, jugador):
                     sala = sala_manager.obtener_info_sala(sala_id)
                     # Notificar a todos en la sala
-                    for j in sala["jugadores"]:
-                        if j in conexiones:
-                            await conexiones[j].send_text(json.dumps({
-                                "tipo": "actualizar_tablero",
-                                "tablero": sala["tablero"],
-                                "turno": sala["turno"],
-                                "estado": sala["estado"],
-                                "ganador": sala["ganador"]
-                            }))
+                    await enviar_a_todos_en_sala(sala_id, {
+                        "tipo": "actualizar_tablero",
+                        "tablero": sala["tablero"],
+                        "turno": sala["turno"],
+                        "estado": sala["estado"],
+                        "ganador": sala["ganador"]
+                    })
             
             elif mensaje["tipo"] == "obtener_estado":
                 sala = sala_manager.obtener_info_sala(sala_id)
@@ -218,7 +218,6 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                     }))
             
             elif mensaje["tipo"] == "obtener_salas":
-                # Limpiar salas antiguas antes de obtener la lista
                 sala_manager.eliminar_sala_antigua()
                 salas_publicas = sala_manager.obtener_salas_publicas()
                 await websocket.send_text(json.dumps({
@@ -227,6 +226,7 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                 }))
     
     except WebSocketDisconnect:
+        print(f"Jugador {jugador} desconectado")
         if jugador in conexiones:
             del conexiones[jugador]
         # Limpiar sala si está vacía
@@ -235,8 +235,13 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
             sala["jugadores"].remove(jugador)
             if not sala["jugadores"]:
                 sala_manager.eliminar_sala(sala_id)
+            else:
+                # Notificar al otro jugador que se desconectó
+                await enviar_a_todos_en_sala(sala_id, {
+                    "tipo": "jugador_desconectado",
+                    "mensaje": f"El jugador {jugador} se ha desconectado"
+                })
 
-# Montar archivos estáticos
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
