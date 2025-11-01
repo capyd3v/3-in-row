@@ -299,3 +299,75 @@ button:disabled {
     transform: scale(1.05);
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
+/* Marcador */
+.marcador {
+    margin-top: 10px;
+    padding: 10px;
+    background: white;
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+}
+
+.marcador-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.marcador-jugador {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 5px;
+    background: #f8f9fa;
+}
+
+.marcador-yo {
+    background: #e3f2fd;
+    font-weight: bold;
+}
+
+.marcador-nombre {
+    color: #333;
+}
+
+.marcador-victorias {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.marcador-partidas {
+    text-align: center;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid #dee2e6;
+    color: #666;
+    font-size: 0.9em;
+}
+
+/* Botón de reinicio */
+.contenedor-reinicio {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.btn-reiniciar {
+    background: #17a2b8;
+    margin-bottom: 10px;
+}
+
+.btn-reiniciar:hover:not(:disabled) {
+    background: #138496;
+}
+
+.btn-reiniciar:disabled {
+    background: #6c757d;
+}
+
+.estado-reinicio {
+    font-size: 0.9em;
+    color: #666;
+    font-style: italic;
+}
