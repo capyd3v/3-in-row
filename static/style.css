@@ -1,172 +1,91 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/* Agregar al final del CSS existente */
 
-body {
-    font-family: 'Arial', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
+/* Pantalla de listar salas */
+.salas-header {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
-}
-
-.container {
-    background: white;
-    border-radius: 15px;
-    padding: 30px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    max-width: 500px;
-    width: 90%;
-}
-
-h1 {
-    text-align: center;
-    color: #333;
     margin-bottom: 20px;
-    font-size: 2.5em;
 }
 
-.pantalla {
-    display: none;
+.btn-secundario {
+    background: #28a745;
+    padding: 8px 15px;
+    width: auto;
 }
 
-.pantalla.activa {
-    display: block;
+.btn-secundario:hover {
+    background: #218838;
 }
 
-.form-group {
-    margin-bottom: 15px;
+.lista-salas {
+    max-height: 400px;
+    overflow-y: auto;
 }
 
-label {
-    display: block;
-    margin-bottom: 5px;
-    color: #555;
-    font-weight: bold;
-}
-
-input {
-    width: 100%;
-    padding: 12px;
-    border: 2px solid #ddd;
-    border-radius: 8px;
-    font-size: 16px;
-    transition: border-color 0.3s;
-}
-
-input:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-button {
-    width: 100%;
-    padding: 12px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-
-button:hover {
-    transform: translateY(-2px);
-}
-
-button:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-    transform: none;
-}
-
-.info-sala {
+.sala-item {
     background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    text-align: center;
-}
-
-#tablero {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin: 20px 0;
-}
-
-.celda {
-    aspect-ratio: 1;
-    background: #f8f9fa;
-    border: 3px solid #667eea;
+    border: 2px solid #dee2e6;
     border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 10px;
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
-    font-size: 2.5em;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s;
 }
 
-.celda:hover {
-    background: #e9ecef;
+.sala-info {
+    flex: 1;
 }
 
-.celda.x {
-    color: #e74c3c;
-}
-
-.celda.o {
-    color: #3498db;
-}
-
-.estado-juego {
-    text-align: center;
-    font-size: 1.2em;
-    margin: 15px 0;
-    font-weight: bold;
+.sala-info strong {
+    display: block;
     color: #333;
+    margin-bottom: 5px;
 }
 
-.ganador {
-    color: #27ae60;
-    animation: pulse 1s infinite;
+.sala-info span {
+    display: block;
+    color: #666;
+    font-size: 0.9em;
+    margin-bottom: 2px;
+}
+
+.sala-acciones {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.clave-input, .nombre-input {
+    width: 120px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.9em;
+}
+
+.sala-acciones button {
+    width: auto;
+    padding: 8px 15px;
+    font-size: 0.9em;
+}
+
+.no-salas {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+    font-style: italic;
+}
+
+/* Estado de espera */
+.estado-juego.esperando {
+    color: #ff6b00;
+    animation: pulse 1.5s infinite;
 }
 
 @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
-
-.jugadores {
-    display: flex;
-    justify-content: space-around;
-    margin: 15px 0;
-}
-
-.jugador {
-    padding: 10px 20px;
-    border-radius: 20px;
-    background: #f8f9fa;
-    font-weight: bold;
-}
-
-.jugador.activo {
-    background: #667eea;
-    color: white;
-}
-
-.btn-volver {
-    background: #6c757d;
-    margin-top: 10px;
-}
-
-.btn-volver:hover {
-    background: #5a6268;
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
 }
