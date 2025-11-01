@@ -3,7 +3,9 @@ class TresEnRaya {
         this.ws = null;
         this.salaId = null;
         this.jugador = null;
-        this.miSimbolo = null; // 'X' o 'O'
+        this.miSimbolo = null;
+        this.turnoActual = null;
+        this.estadoActual = null;
         this.pantallas = {
             inicio: document.getElementById('pantalla-inicio'),
             crear: document.getElementById('pantalla-crear'),
@@ -13,6 +15,7 @@ class TresEnRaya {
         };
         
         this.inicializarEventos();
+        this.inicializarTablero(); // Inicializar tablero una vez al inicio
     }
     
     inicializarEventos() {
@@ -29,15 +32,100 @@ class TresEnRaya {
         document.getElementById('form-crear-sala').addEventListener('submit', (e) => this.crearSala(e));
         document.getElementById('form-unir-sala').addEventListener('submit', (e) => this.unirSala(e));
         
-        // Tablero
-        this.inicializarTablero();
-        
         // Cargar salas disponibles al mostrar la pantalla
         document.getElementById('btn-unir-sala').addEventListener('click', () => {
             setTimeout(() => this.obtenerSalasDisponibles(), 100);
         });
     }
     
+    inicializarTablero() {
+        const tablero = document.getElementById('tablero');
+        if (!tablero) return;
+        
+        tablero.innerHTML = '';
+        
+        for (let i = 0; i < 9; i++) {
+            const celda = document.createElement('div');
+            celda.className = 'celda';
+            celda.dataset.posicion = i;
+            celda.addEventListener('click', () => this.hacerMovimiento(i));
+            tablero.appendChild(celda);
+        }
+    }
+    
+    actualizarTablero(tablero) {
+        const celdas = document.querySelectorAll('.celda');
+        const esMiTurno = this.miSimbolo === this.turnoActual;
+        const juegoEnProgreso = this.estadoActual === 'jugando';
+        
+        celdas.forEach((celda, index) => {
+            // Limpiar la celda primero
+            celda.textContent = '';
+            celda.className = 'celda';
+            
+            // Actualizar con el valor del tablero
+            if (tablero[index]) {
+                celda.textContent = tablero[index];
+                if (tablero[index] === 'X') {
+                    celda.classList.add('x');
+                } else if (tablero[index] === 'O') {
+                    celda.classList.add('o');
+                }
+            }
+            
+            // Configurar interactividad
+            const celdaOcupada = !!tablero[index];
+            const puedeJugar = esMiTurno && juegoEnProgreso && !celdaOcupada;
+            
+            if (puedeJugar) {
+                celda.style.cursor = 'pointer';
+                celda.style.opacity = '1';
+                celda.classList.add('jugable');
+            } else {
+                celda.style.cursor = 'not-allowed';
+                celda.style.opacity = celdaOcupada ? '1' : '0.6';
+                celda.classList.remove('jugable');
+            }
+        });
+        
+        console.log('Tablero actualizado. Mi turno:', esMiTurno, 'Estado:', this.estadoActual);
+    }
+    
+    hacerMovimiento(posicion) {
+        // Verificar condiciones antes de enviar el movimiento
+        const esMiTurno = this.miSimbolo === this.turnoActual;
+        const juegoEnProgreso = this.estadoActual === 'jugando';
+        
+        if (!esMiTurno) {
+            console.log('No es tu turno');
+            return;
+        }
+        
+        if (!juegoEnProgreso) {
+            console.log('El juego no está en progreso');
+            return;
+        }
+        
+        // Verificar si la celda está ocupada
+        const celdas = document.querySelectorAll('.celda');
+        const celda = celdas[posicion];
+        if (celda.textContent !== '') {
+            console.log('Celda ocupada');
+            return;
+        }
+        
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            console.log('Enviando movimiento en posición:', posicion);
+            this.ws.send(JSON.stringify({
+                tipo: 'movimiento',
+                posicion: posicion
+            }));
+        } else {
+            console.log('WebSocket no está conectado');
+        }
+    }
+    
+    // ... (el resto de los métodos se mantienen igual)
     mostrarPantalla(pantalla) {
         Object.values(this.pantallas).forEach(p => {
             if (p) p.classList.remove('activa');
@@ -87,22 +175,20 @@ class TresEnRaya {
         switch(mensaje.tipo) {
             case 'sala_creada':
                 this.salaId = mensaje.sala_id;
-                this.miSimbolo = 'X'; // El creador siempre es X inicialmente
+                this.miSimbolo = 'X';
                 this.mostrarPantallaJuego();
                 this.actualizarInfoSala();
                 this.mostrarMensajeEspera();
                 break;
                 
             case 'unido_exitoso':
-                // Jugador se unió exitosamente a una sala
                 console.log('Unido exitosamente a la sala:', mensaje.sala);
-                this.miSimbolo = mensaje.tu_simbolo; // 'O' para el segundo jugador
+                this.miSimbolo = mensaje.tu_simbolo;
                 this.mostrarPantallaJuego();
                 this.actualizarPantallaConEstado(mensaje.sala);
                 break;
                 
             case 'estado_actualizado':
-                // Estado actualizado para todos los jugadores
                 this.actualizarPantallaConEstado(mensaje.sala);
                 break;
                 
@@ -363,7 +449,6 @@ class TresEnRaya {
             div.className = 'jugador';
             div.textContent = `${jugador} (${simbolo})`;
             
-            // Resaltar si es el jugador actual
             if (jugador === this.jugador) {
                 div.style.fontWeight = 'bold';
                 div.style.color = '#667eea';
@@ -373,70 +458,13 @@ class TresEnRaya {
         });
     }
     
-    inicializarTablero() {
-        const tablero = document.getElementById('tablero');
-        if (!tablero) return;
-        
-        tablero.innerHTML = '';
-        
-        for (let i = 0; i < 9; i++) {
-            const celda = document.createElement('div');
-            celda.className = 'celda';
-            celda.dataset.posicion = i;
-            celda.addEventListener('click', () => this.hacerMovimiento(i));
-            tablero.appendChild(celda);
-        }
-    }
-    
-    hacerMovimiento(posicion) {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            console.log('Enviando movimiento:', posicion);
-            this.ws.send(JSON.stringify({
-                tipo: 'movimiento',
-                posicion: posicion
-            }));
-        }
-    }
-    
-    actualizarTablero(tablero) {
-        const celdas = document.querySelectorAll('.celda');
-        celdas.forEach((celda, index) => {
-            // Limpiar la celda primero
-            celda.textContent = '';
-            celda.className = 'celda';
-            
-            // Actualizar con el valor del tablero
-            if (tablero[index]) {
-                celda.textContent = tablero[index];
-                if (tablero[index] === 'X') {
-                    celda.classList.add('x');
-                } else if (tablero[index] === 'O') {
-                    celda.classList.add('o');
-                }
-            }
-            
-            // Solo permitir clics si es el turno del jugador y la celda está vacía
-            const esMiTurno = this.miSimbolo === this.turnoActual;
-            if (esMiTurno && !tablero[index] && this.estadoActual === 'jugando') {
-                celda.style.cursor = 'pointer';
-                celda.addEventListener('click', () => this.hacerMovimiento(index));
-            } else {
-                celda.style.cursor = 'not-allowed';
-                // Remover event listeners existentes
-                const nuevaCelda = celda.cloneNode(true);
-                celda.parentNode.replaceChild(nuevaCelda, celda);
-            }
-        });
-    }
-    
     actualizarTurno(turno) {
-        this.turnoActual = turno; // Guardar para usar en actualizarTablero
+        this.turnoActual = turno;
         
         const estado = document.getElementById('estado-turno');
         const jugadores = document.querySelectorAll('.jugador');
         
         if (estado) {
-            // Determinar si es el turno del jugador actual
             const esMiTurno = this.miSimbolo === turno;
             
             if (esMiTurno) {
@@ -450,7 +478,6 @@ class TresEnRaya {
             }
         }
         
-        // Actualizar resaltado de jugadores
         jugadores.forEach((jugador) => {
             const texto = jugador.textContent;
             const simboloJugador = texto.includes('(X)') ? 'X' : 'O';
@@ -461,10 +488,32 @@ class TresEnRaya {
                 jugador.classList.remove('activo');
             }
         });
+        
+        // Actualizar interactividad del tablero
+        this.actualizarInteractividadTablero();
+    }
+    
+    actualizarInteractividadTablero() {
+        const celdas = document.querySelectorAll('.celda');
+        const esMiTurno = this.miSimbolo === this.turnoActual;
+        const juegoEnProgreso = this.estadoActual === 'jugando';
+        
+        celdas.forEach((celda) => {
+            const celdaOcupada = celda.textContent !== '';
+            const puedeJugar = esMiTurno && juegoEnProgreso && !celdaOcupada;
+            
+            if (puedeJugar) {
+                celda.style.cursor = 'pointer';
+                celda.style.opacity = '1';
+            } else {
+                celda.style.cursor = 'not-allowed';
+                celda.style.opacity = celdaOcupada ? '1' : '0.6';
+            }
+        });
     }
     
     actualizarEstado(estado, ganador = null) {
-        this.estadoActual = estado; // Guardar para usar en actualizarTablero
+        this.estadoActual = estado;
         
         const estadoElemento = document.getElementById('estado-juego');
         if (!estadoElemento) return;
@@ -489,6 +538,9 @@ class TresEnRaya {
                 estadoElemento.className = 'estado-juego';
                 break;
         }
+        
+        // Actualizar interactividad del tablero cuando cambia el estado
+        this.actualizarInteractividadTablero();
     }
     
     ocultarMensajeEspera() {
@@ -510,7 +562,7 @@ class TresEnRaya {
         this.turnoActual = null;
         this.estadoActual = null;
         this.mostrarPantalla('inicio');
-        this.inicializarTablero();
+        this.inicializarTablero(); // Reiniciar tablero
     }
 }
 
