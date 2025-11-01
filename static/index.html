@@ -73,6 +73,9 @@
         <div id="pantalla-juego" class="pantalla">
             <div class="info-sala">
                 <h3>Sala: <span id="sala-id">-</span></h3>
+                <div id="marcador" class="marcador">
+                    <!-- Marcador se mostrará aquí -->
+                </div>
             </div>
             
             <div id="estado-juego" class="estado-juego">Esperando jugadores...</div>
@@ -84,6 +87,12 @@
             
             <div id="tablero" class="tablero">
                 <!-- Tablero se genera dinámicamente -->
+            </div>
+            
+            <!-- Botón de reinicio -->
+            <div id="contenedor-reinicio" class="contenedor-reinicio" style="display: none;">
+                <button id="btn-reiniciar" class="btn-reiniciar">🔄 Reiniciar Partida</button>
+                <div id="estado-reinicio" class="estado-reinicio"></div>
             </div>
             
             <button id="btn-volver-juego" class="btn-volver">Salir de la Sala</button>
