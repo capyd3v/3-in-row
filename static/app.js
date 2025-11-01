@@ -236,6 +236,9 @@ class TresEnRaya {
                 
             case 'partida_reiniciada':
                 console.log('Partida reiniciada:', mensaje.sala);
+                // CORRECCIÓN: Actualizar mi símbolo después del reinicio
+                this.miSimbolo = mensaje.sala.simbolos[this.jugador];
+                console.log('Nuevo símbolo después del reinicio:', this.miSimbolo);
                 this.actualizarPantallaConEstado(mensaje.sala);
                 this.actualizarMarcador(mensaje.marcador);
                 this.ocultarBotonReinicio();
@@ -452,6 +455,12 @@ class TresEnRaya {
         console.log('Actualizando pantalla con estado completo:', sala);
         console.log('Mi símbolo actual:', this.miSimbolo, 'Mi jugador:', this.jugador);
         
+        // CORRECCIÓN: Actualizar mi símbolo desde la sala
+        if (sala.simbolos && this.jugador in sala.simbolos) {
+            this.miSimbolo = sala.simbolos[this.jugador];
+            console.log('Símbolo actualizado desde sala:', this.miSimbolo);
+        }
+        
         this.actualizarInfoSala();
         this.actualizarJugadores(sala.jugadores, sala.simbolos);
         this.actualizarTablero(sala.tablero);
@@ -518,7 +527,7 @@ class TresEnRaya {
         
         jugadores.forEach((jugador) => {
             const texto = jugador.textContent;
-            const simboloJugador = texto.includes('(X)') ? 'X' : 'O';
+            const simboloJugador = texto.includes('(X)') ? 'X' : texto.includes('(O)') ? 'O' : null;
             
             if (simboloJugador === turno) {
                 jugador.classList.add('activo');
@@ -542,9 +551,11 @@ class TresEnRaya {
             if (puedeJugar) {
                 celda.style.cursor = 'pointer';
                 celda.style.opacity = '1';
+                celda.classList.add('jugable');
             } else {
                 celda.style.cursor = 'not-allowed';
                 celda.style.opacity = celdaOcupada ? '1' : '0.6';
+                celda.classList.remove('jugable');
             }
         });
     }
