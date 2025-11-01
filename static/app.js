@@ -45,7 +45,6 @@ class TresEnRaya {
             this.pantallas[pantalla].classList.add('activa');
         }
         
-        // Si es la pantalla de listar, cargar salas
         if (pantalla === 'listar') {
             setTimeout(() => this.obtenerSalasDisponibles(), 100);
         }
@@ -81,12 +80,6 @@ class TresEnRaya {
         });
     }
     
-    async esperarConexion() {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            await this.conectarWebSocket();
-        }
-    }
-    
     procesarMensaje(mensaje) {
         console.log('Procesando mensaje:', mensaje);
         
@@ -98,12 +91,16 @@ class TresEnRaya {
                 this.mostrarMensajeEspera();
                 break;
                 
-            case 'jugador_unido':
-                this.actualizarJugadores(mensaje.jugadores);
-                this.actualizarEstado(mensaje.estado);
-                if (mensaje.estado === 'jugando') {
-                    this.ocultarMensajeEspera();
-                }
+            case 'unido_exitoso':
+                // Jugador se unió exitosamente a una sala
+                console.log('Unido exitosamente a la sala:', mensaje.sala);
+                this.mostrarPantallaJuego();
+                this.actualizarPantallaConEstado(mensaje.sala);
+                break;
+                
+            case 'estado_actualizado':
+                // Estado actualizado para todos los jugadores
+                this.actualizarPantallaConEstado(mensaje.sala);
                 break;
                 
             case 'actualizar_tablero':
@@ -117,8 +114,12 @@ class TresEnRaya {
                 break;
                 
             case 'lista_salas':
-                console.log('Salas recibidas:', mensaje.salas);
                 this.mostrarSalasDisponibles(mensaje.salas);
+                break;
+                
+            case 'jugador_desconectado':
+                alert(mensaje.mensaje);
+                this.volverAlInicio();
                 break;
                 
             case 'error':
@@ -141,7 +142,6 @@ class TresEnRaya {
         try {
             await this.conectarWebSocket('temp', this.jugador);
             
-            // Esperar a que la conexión esté realmente lista
             await new Promise(resolve => {
                 if (this.ws.readyState === WebSocket.OPEN) {
                     resolve();
@@ -165,7 +165,6 @@ class TresEnRaya {
         try {
             console.log('Obteniendo salas disponibles...');
             
-            // Crear una conexión temporal específica para obtener salas
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws/lista/salas`;
             
@@ -198,10 +197,7 @@ class TresEnRaya {
     
     mostrarSalasDisponibles(salas) {
         const lista = document.getElementById('lista-salas');
-        if (!lista) {
-            console.error('Elemento lista-salas no encontrado');
-            return;
-        }
+        if (!lista) return;
         
         console.log('Mostrando salas:', salas);
         lista.innerHTML = '';
@@ -221,7 +217,7 @@ class TresEnRaya {
                     <span>Creada por: ${sala.creador}</span>
                 </div>
                 <div class="sala-acciones">
-                    <input type="text" class="clave-input" placeholder="Clave" id="clave-${sala.id}">
+                    <input type="password" class="clave-input" placeholder="Clave" id="clave-${sala.id}">
                     <input type="text" class="nombre-input" placeholder="Tu nombre" id="nombre-${sala.id}">
                     <button onclick="app.unirseASalaDesdeLista('${sala.id}')">Unirse</button>
                 </div>
@@ -258,7 +254,6 @@ class TresEnRaya {
         try {
             await this.conectarWebSocket(salaId, nombre);
             
-            // Esperar a que la conexión esté lista
             await new Promise(resolve => {
                 if (this.ws.readyState === WebSocket.OPEN) {
                     resolve();
@@ -267,6 +262,7 @@ class TresEnRaya {
                 }
             });
             
+            console.log('Enviando solicitud de unión...');
             this.ws.send(JSON.stringify({
                 tipo: 'unir_sala',
                 clave: clave,
@@ -279,7 +275,6 @@ class TresEnRaya {
         }
     }
     
-    // ... (mantener el resto de los métodos igual)
     async unirSala(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
@@ -318,15 +313,7 @@ class TresEnRaya {
     
     mostrarPantallaJuego() {
         this.mostrarPantalla('juego');
-        this.solicitarEstado();
-    }
-    
-    solicitarEstado() {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({
-                tipo: 'obtener_estado'
-            }));
-        }
+        // No solicitar estado inmediatamente - esperar a que el servidor envíe el estado
     }
     
     mostrarMensajeEspera() {
@@ -337,23 +324,20 @@ class TresEnRaya {
         }
     }
     
-    ocultarMensajeEspera() {
-        const estadoElemento = document.getElementById('estado-juego');
-        if (estadoElemento) {
-            estadoElemento.textContent = '¡Juego en progreso!';
-            estadoElemento.className = 'estado-juego';
-        }
-    }
-    
     actualizarPantallaConEstado(sala) {
+        console.log('Actualizando pantalla con estado:', sala);
+        
         this.actualizarInfoSala();
         this.actualizarJugadores(sala.jugadores);
         this.actualizarTablero(sala.tablero);
         this.actualizarTurno(sala.turno);
         this.actualizarEstado(sala.estado, sala.ganador);
         
+        // Mostrar mensaje de espera si es necesario
         if (sala.estado === 'esperando' && sala.jugadores.length === 1) {
             this.mostrarMensajeEspera();
+        } else if (sala.estado === 'jugando') {
+            this.ocultarMensajeEspera();
         }
     }
     
@@ -374,6 +358,13 @@ class TresEnRaya {
             const div = document.createElement('div');
             div.className = 'jugador';
             div.textContent = `${jugador} (${index === 0 ? 'X' : 'O'})`;
+            
+            // Resaltar si es el jugador actual
+            if (jugador === this.jugador) {
+                div.style.fontWeight = 'bold';
+                div.style.color = '#667eea';
+            }
+            
             contenedor.appendChild(div);
         });
     }
@@ -395,6 +386,7 @@ class TresEnRaya {
     
     hacerMovimiento(posicion) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            console.log('Enviando movimiento:', posicion);
             this.ws.send(JSON.stringify({
                 tipo: 'movimiento',
                 posicion: posicion
@@ -405,7 +397,7 @@ class TresEnRaya {
     actualizarTablero(tablero) {
         const celdas = document.querySelectorAll('.celda');
         celdas.forEach((celda, index) => {
-            celda.textContent = tablero[index];
+            celda.textContent = tablero[index] || '';
             celda.className = 'celda';
             if (tablero[index] === 'X') {
                 celda.classList.add('x');
@@ -420,9 +412,19 @@ class TresEnRaya {
         const jugadores = document.querySelectorAll('.jugador');
         
         if (estado) {
-            estado.textContent = `Turno de: ${turno}`;
+            // Determinar si es el turno del jugador actual
+            const jugadorIndex = this.obtenerIndiceJugador();
+            const simboloJugadorActual = jugadorIndex === 0 ? 'X' : 'O';
+            const esMiTurno = turno === simboloJugadorActual;
+            
+            estado.textContent = esMiTurno ? 
+                `🎯 ¡Es tu turno! (${turno})` : 
+                `⏳ Turno del oponente (${turno})`;
+                
+            estado.style.color = esMiTurno ? '#28a745' : '#666';
         }
         
+        // Actualizar resaltado de jugadores
         jugadores.forEach((jugador, index) => {
             const simboloJugador = index === 0 ? 'X' : 'O';
             if (simboloJugador === turno) {
@@ -433,28 +435,44 @@ class TresEnRaya {
         });
     }
     
+    obtenerIndiceJugador() {
+        // Obtener el índice del jugador actual en la sala
+        // Esto se determina basado en el orden de unión
+        // Por ahora, asumimos que el servidor mantiene el orden
+        return this.jugador ? 0 : -1; // Esto necesita mejorarse
+    }
+    
     actualizarEstado(estado, ganador = null) {
         const estadoElemento = document.getElementById('estado-juego');
         if (!estadoElemento) return;
         
         switch(estado) {
             case 'esperando':
-                if (!estadoElemento.classList.contains('esperando')) {
-                    this.mostrarMensajeEspera();
-                }
+                this.mostrarMensajeEspera();
                 break;
             case 'jugando':
                 estadoElemento.textContent = '¡Juego en progreso!';
                 estadoElemento.className = 'estado-juego';
                 break;
             case 'terminado':
-                estadoElemento.textContent = `¡Ganador: ${ganador}!`;
+                const esGanador = ganador === this.jugador;
+                estadoElemento.textContent = esGanador ? 
+                    '🎉 ¡Has ganado!' : 
+                    `🏆 Ganador: ${ganador}`;
                 estadoElemento.className = 'estado-juego ganador';
                 break;
             case 'empate':
-                estadoElemento.textContent = '¡Empate!';
+                estadoElemento.textContent = '🤝 ¡Empate!';
                 estadoElemento.className = 'estado-juego';
                 break;
+        }
+    }
+    
+    ocultarMensajeEspera() {
+        const estadoElemento = document.getElementById('estado-juego');
+        if (estadoElemento) {
+            estadoElemento.textContent = '¡Juego en progreso!';
+            estadoElemento.className = 'estado-juego';
         }
     }
     
@@ -470,5 +488,4 @@ class TresEnRaya {
     }
 }
 
-// Hacer la instancia global para los botones
 const app = new TresEnRaya();
