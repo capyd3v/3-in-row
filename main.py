@@ -174,6 +174,12 @@ class SalaManager:
         
         for sala_id in salas_a_eliminar:
             del self.salas[sala_id]
+    
+    def eliminar_sala(self, sala_id: str):
+        """Eliminar una sala específica"""
+        if sala_id in self.salas:
+            del self.salas[sala_id]
+            print(f"Sala {sala_id} eliminada")
 
 sala_manager = SalaManager()
 
@@ -315,14 +321,18 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
         print(f"Jugador {jugador} desconectado")
         if jugador in conexiones:
             del conexiones[jugador]
+        
         # Limpiar sala si está vacía
         sala = sala_manager.obtener_info_sala(sala_id)
         if sala and jugador in sala["jugadores"]:
             sala["jugadores"].remove(jugador)
             if jugador in sala["simbolos"]:
                 del sala["simbolos"][jugador]
+            
+            # Si la sala queda vacía, eliminarla
             if not sala["jugadores"]:
                 sala_manager.eliminar_sala(sala_id)
+                print(f"Sala {sala_id} eliminada por estar vacía")
             else:
                 # Notificar al otro jugador que se desconectó
                 await enviar_a_todos_en_sala(sala_id, {
