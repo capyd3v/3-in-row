@@ -29,22 +29,28 @@ class SalaManager:
             "creador": creador,
             "timestamp": time.time()
         }
+        print(f"Sala creada: {sala_id} por {creador}")  # Debug
         return sala_id
     
     def unir_sala(self, sala_id: str, clave: str, jugador: str) -> bool:
         sala = self.salas.get(sala_id)
         if not sala:
+            print(f"Sala no encontrada: {sala_id}")  # Debug
             return False
         if sala["clave"] != clave:
+            print(f"Clave incorrecta para sala: {sala_id}")  # Debug
             return False
         if len(sala["jugadores"]) >= 2:
+            print(f"Sala llena: {sala_id}")  # Debug
             return False
         if jugador in sala["jugadores"]:
+            print(f"Jugador ya en sala: {jugador}")  # Debug
             return False
             
         sala["jugadores"].append(jugador)
         if len(sala["jugadores"]) == 2:
             sala["estado"] = "jugando"
+        print(f"Jugador {jugador} unido a sala {sala_id}")  # Debug
         return True
     
     def hacer_movimiento(self, sala_id: str, posicion: int, jugador: str) -> bool:
@@ -95,27 +101,46 @@ class SalaManager:
         return self.salas.get(sala_id)
     
     def obtener_salas_publicas(self) -> List[Dict]:
-        # Retornar salas que no están llenas y tienen menos de 5 minutos
+        # Retornar salas que no están llenas y tienen menos de 10 minutos
         ahora = time.time()
         salas_publicas = []
         
+        print(f"Total de salas: {len(self.salas)}")  # Debug
+        
         for sala_id, sala in self.salas.items():
-            # Solo mostrar salas con menos de 5 minutos y que no estén llenas
-            if (ahora - sala["timestamp"] < 300 and 
+            print(f"Revisando sala: {sala_id}, jugadores: {len(sala['jugadores'])}, estado: {sala['estado']}")  # Debug
+            
+            # Solo mostrar salas con menos de 10 minutos, que no estén llenas y estén esperando
+            es_valida = (
+                ahora - sala["timestamp"] < 600 and  # 10 minutos
                 len(sala["jugadores"]) < 2 and 
-                sala["estado"] == "esperando"):
+                sala["estado"] == "esperando"
+            )
+            
+            if es_valida:
                 salas_publicas.append({
                     "id": sala["id"],
                     "jugadores": sala["jugadores"],
                     "creador": sala["creador"],
                     "cantidad_jugadores": len(sala["jugadores"])
                 })
+                print(f"Sala válida agregada: {sala_id}")  # Debug
         
+        print(f"Salas públicas encontradas: {len(salas_publicas)}")  # Debug
         return salas_publicas
     
-    def eliminar_sala(self, sala_id: str):
-        if sala_id in self.salas:
+    def eliminar_sala_antigua(self):
+        """Eliminar salas antiguas para mantener limpieza"""
+        ahora = time.time()
+        salas_a_eliminar = []
+        
+        for sala_id, sala in self.salas.items():
+            if ahora - sala["timestamp"] > 1800:  # 30 minutos
+                salas_a_eliminar.append(sala_id)
+        
+        for sala_id in salas_a_eliminar:
             del self.salas[sala_id]
+            print(f"Sala antigua eliminada: {sala_id}")
 
 sala_manager = SalaManager()
 
@@ -193,7 +218,9 @@ async def websocket_endpoint(websocket: WebSocket, sala_id: str, jugador: str):
                     }))
             
             elif mensaje["tipo"] == "obtener_salas":
-                salas_publicas = sala_manager.obtenersalas_publicas()
+                # Limpiar salas antiguas antes de obtener la lista
+                sala_manager.eliminar_sala_antigua()
+                salas_publicas = sala_manager.obtener_salas_publicas()
                 await websocket.send_text(json.dumps({
                     "tipo": "lista_salas",
                     "salas": salas_publicas
