@@ -65,6 +65,7 @@ input:focus {
 button {
     width: 100%;
     padding: 12px;
+    margin-bottom:0.25rem;
     background: linear-gradient(135deg, #667eea, #764ba2);
     color: white;
     border: none;
@@ -134,6 +135,7 @@ button:disabled {
 }
 
 .ganador {
+    font-size:1.5rem;
     color: #27ae60;
     animation: pulse 1s infinite;
 }
