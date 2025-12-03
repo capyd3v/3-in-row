@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3 en Raya Online</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 3 en Raya Online</h1>
+        
+        <!-- Pantalla de Inicio -->
+        <div id="pantalla-inicio" class="pantalla activa">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <p style="color: #666; margin-bottom: 20px;">Juega al clásico 3 en raya con amigos online</p>
+            </div>
+            <button id="btn-crear-sala" class="btn-principal">Crear Sala</button>
+            <button id="btn-unir-sala" class="btn-principal">Unirse a Sala</button>
+        </div>
+        
+        <!-- Pantalla Crear Sala -->
+        <div id="pantalla-crear" class="pantalla">
+            <h2>Crear Nueva Sala</h2>
+            <form id="form-crear-sala">
+                <div class="form-group">
+                    <label for="crear-jugador">Tu Nombre:</label>
+                    <input type="text" id="crear-jugador" name="jugador" required maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label for="crear-clave">Clave de la Sala:</label>
+                    <input type="password" id="crear-clave" name="clave" required placeholder="Elige una clave para la sala">
+                </div>
+                <button type="submit">Crear Sala</button>
+            </form>
+            <button id="btn-volver-inicio" class="btn-volver">Volver al Inicio</button>
+        </div>
+        
+        <!-- Pantalla Listar Salas -->
+        <div id="pantalla-listar" class="pantalla">
+            <h2>Salas Disponibles</h2>
+            <div class="salas-header">
+                <button id="btn-actualizar-lista" class="btn-secundario">🔄 Actualizar</button>
+            </div>
+            <div id="lista-salas" class="lista-salas">
+                <!-- Las salas se cargarán aquí -->
+            </div>
+            <button id="btn-volver-listar" class="btn-volver">Volver al Inicio</button>
+        </div>
+        
+        <!-- Pantalla Unirse a Sala (para URL directa) -->
+        <div id="pantalla-unir" class="pantalla">
+            <h2>Unirse a Sala Existente</h2>
+            <form id="form-unir-sala">
+                <div class="form-group">
+                    <label for="unir-jugador">Tu Nombre:</label>
+                    <input type="text" id="unir-jugador" name="jugador" required maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label for="unir-sala-id">ID de la Sala:</label>
+                    <input type="text" id="unir-sala-id" name="sala_id" required placeholder="Ej: abc123">
+                </div>
+                <div class="form-group">
+                    <label for="unir-clave">Clave de la Sala:</label>
+                    <input type="password" id="unir-clave" name="clave" required placeholder="Ingresa la clave">
+                </div>
+                <button type="submit">Unirse a Sala</button>
+            </form>
+            <button id="btn-volver-inicio-2" class="btn-volver">Volver al Inicio</button>
+        </div>
+        
+        <!-- Pantalla de Juego -->
+        <div id="pantalla-juego" class="pantalla">
+            <div class="info-sala">
+                <h3>Sala: <span id="sala-id">-</span></h3>
+                <div id="marcador" class="marcador">
+                    <!-- Marcador se mostrará aquí -->
+                </div>
+            </div>
+            
+            <div id="estado-juego" class="estado-juego">Esperando jugadores...</div>
+            <div id="estado-turno" class="estado-juego"></div>
+            
+            <div class="jugadores" id="jugadores">
+                <!-- Jugadores se mostrarán aquí -->
+            </div>
+            
+            <div id="tablero" class="tablero">
+                <!-- Tablero se genera dinámicamente -->
+            </div>
+            
+            <!-- Botón de reinicio -->
+            <div id="contenedor-reinicio" class="contenedor-reinicio" style="display: none;">
+                <button id="btn-reiniciar" class="btn-reiniciar">🔄 Reiniciar Partida</button>
+                <div id="estado-reinicio" class="estado-reinicio"></div>
+            </div>
+            
+            <button id="btn-volver-juego" class="btn-volver">Salir de la Sala</button>
+        </div>
+    </div>
+    
+    <script src="/static/app.js"></script>
+</body>
+</html>

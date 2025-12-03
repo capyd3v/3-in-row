@@ -1,0 +1,375 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.container {
+    background: white;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 90%;
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 2.5em;
+}
+
+.pantalla {
+    display: none;
+}
+
+.pantalla.activa {
+    display: block;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    font-weight: bold;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    margin-bottom:0.25rem;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+button:hover {
+    transform: translateY(-2px);
+}
+
+button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.info-sala {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+#tablero {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.celda {
+    aspect-ratio: 1;
+    background: #f8f9fa;
+    border: 3px solid #667eea;
+    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2.5em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.celda:hover {
+    background: #e9ecef;
+}
+
+.celda.x {
+    color: #e74c3c;
+}
+
+.celda.o {
+    color: #3498db;
+}
+
+.estado-juego {
+    text-align: center;
+    font-size: 1.2em;
+    margin: 15px 0;
+    font-weight: bold;
+    color: #333;
+}
+
+.ganador {
+    font-size:1.5rem;
+    color: #27ae60;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.jugadores {
+    display: flex;
+    justify-content: space-around;
+    margin: 15px 0;
+}
+
+.jugador {
+    padding: 10px 20px;
+    border-radius: 20px;
+    background: #f8f9fa;
+    font-weight: bold;
+}
+
+.jugador.activo {
+    background: #667eea;
+    color: white;
+}
+
+.btn-volver {
+    background: #6c757d;
+    margin-top: 10px;
+}
+
+.btn-volver:hover {
+    background: #5a6268;
+}
+
+/* Agregar al final del CSS existente */
+
+/* Pantalla de listar salas */
+.salas-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.btn-secundario {
+    background: #28a745;
+    padding: 8px 15px;
+    width: auto;
+}
+
+.btn-secundario:hover {
+    background: #218838;
+}
+
+.lista-salas {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.sala-item {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sala-info {
+    flex: 1;
+}
+
+.sala-info strong {
+    display: block;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.sala-info span {
+    display: block;
+    color: #666;
+    font-size: 0.9em;
+    margin-bottom: 2px;
+}
+
+.sala-acciones {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.clave-input, .nombre-input {
+    width: 120px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.9em;
+}
+
+.sala-acciones button {
+    width: auto;
+    padding: 8px 15px;
+    font-size: 0.9em;
+}
+
+.no-salas {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+    font-style: italic;
+}
+
+/* Estado de espera */
+.estado-juego.esperando {
+    color: #ff6b00;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Agregar al final del CSS existente */
+
+.celda.jugable {
+    background: #e8f5e8;
+    border-color: #28a745;
+    transition: all 0.3s ease;
+}
+
+.celda.jugable:hover {
+    background: #d4edda;
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.celda:not(.jugable) {
+    transition: opacity 0.3s ease;
+}
+
+/* Mejorar visibilidad de los símbolos */
+.celda.x {
+    color: #e74c3c;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+.celda.o {
+    color: #3498db;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+/* Estado de los jugadores */
+.jugador.activo {
+    background: #28a745 !important;
+    color: white !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Marcador */
+.marcador {
+    margin-top: 10px;
+    padding: 10px;
+    background: white;
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+}
+
+.marcador-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.marcador-jugador {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 5px;
+    background: #f8f9fa;
+}
+
+.marcador-yo {
+    background: #e3f2fd;
+    font-weight: bold;
+}
+
+.marcador-nombre {
+    color: #333;
+}
+
+.marcador-victorias {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.marcador-partidas {
+    text-align: center;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid #dee2e6;
+    color: #666;
+    font-size: 0.9em;
+}
+
+/* Botón de reinicio */
+.contenedor-reinicio {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.btn-reiniciar {
+    background: #17a2b8;
+    margin-bottom: 10px;
+}
+
+.btn-reiniciar:hover:not(:disabled) {
+    background: #138496;
+}
+
+.btn-reiniciar:disabled {
+    background: #6c757d;
+}
+
+.estado-reinicio {
+    font-size: 0.9em;
+    color: #666;
+    font-style: italic;
+}
